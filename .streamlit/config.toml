@@ -1,6 +1,5 @@
 [server]
 runOnSave = true
-baseUrlPath = "texelio-topic-labelling"
 
 [browser]
 gatherUsageStats = false
