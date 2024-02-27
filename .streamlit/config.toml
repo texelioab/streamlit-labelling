@@ -1,0 +1,12 @@
+[server]
+runOnSave = true
+baseUrlPath = "texelio-topic-labelling"
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "dark"
+primaryColor = "#20125c"
+backgroundColor = 'black'
+textColor="white"
