@@ -4,13 +4,11 @@ import json
 from dotenv import load_dotenv
 
 
-def call_gpt(system_content, assistant_content, user_content, custom_output_function, max_n_tries):
+def call_gpt(gpt_key, system_content, assistant_content, user_content, custom_output_function, max_n_tries):
     for i in range(max_n_tries):
         try:
-            load_dotenv('credentials.env')
-            GPT_TOPICS_KEY=os.getenv('GPT_TOPICS_KEY')
             client = OpenAI(
-            api_key=GPT_TOPICS_KEY,
+            api_key=gpt_key,
             )
             model = 'gpt-4'
 
@@ -98,10 +96,10 @@ def generate_sentences_custom_function(n):
 
     return custom_output_function
 
-def generate_n_sentences(n, topic_name, topic_definition, keywords, name_variations, difficult_cases, labelled_sentences, max_n_tries=5):
+def generate_n_sentences(gpt_key, n, topic_name, topic_definition, keywords, name_variations, difficult_cases, labelled_sentences, max_n_tries=5):
     system_content, assistant_content, user_content = generate_sentences_prompt(n, topic_name, topic_definition, keywords, name_variations, difficult_cases, labelled_sentences)
     custom_output_function = generate_sentences_custom_function(n)
-    response = call_gpt(system_content, assistant_content, user_content, custom_output_function, max_n_tries)
+    response = call_gpt(gpt_key, system_content, assistant_content, user_content, custom_output_function, max_n_tries)
     return [{'sentence_text':response[f'sentence_{i}'], 'label': response[f'label_{i}'], 'explanation':response[f'explanation_{i}']} for i in range(1,n+1)]
 
 def generate_kw_nv_dc_prompt(topic_name, topic_definition, keywords, name_variations, difficult_cases, labelled_sentences):
@@ -156,10 +154,10 @@ def generate_kw_nv_dc_custom_function():
     
     return custom_output_function
 
-def generate_kw_nv_dc(topic_name, topic_definition, keywords, name_variations, difficult_cases, labelled_sentences, max_n_tries = 5):
+def generate_kw_nv_dc(gpt_key, topic_name, topic_definition, keywords, name_variations, difficult_cases, labelled_sentences, max_n_tries = 5):
     system_content, assistant_content, user_content = generate_kw_nv_dc_prompt(topic_name, topic_definition, keywords, name_variations, difficult_cases, labelled_sentences)
     custom_output_function = generate_kw_nv_dc_custom_function()
-    response = call_gpt(system_content, assistant_content, user_content, custom_output_function, max_n_tries)
+    response = call_gpt(gpt_key, system_content, assistant_content, user_content, custom_output_function, max_n_tries)
     return response
 
 if __name__ == "__main__":
@@ -199,8 +197,10 @@ if __name__ == "__main__":
             'explanation':'Although the sentence begins by discussing "U.S. Treasuries and a tightening of credit spreads", which are more general and not specifically corporate bonds, the sentence then mentions these explicitly, thus receiving the label "Yes".'
         }
     ]
+    load_dotenv('credentials.env')
+    GPT_TOPICS_KEY=os.getenv('GPT_TOPICS_KEY')
 
-    sentences = generate_n_sentences(n, topic_name, topic_definition, keywords, name_variations, difficult_cases, labelled_sentences)
+    sentences = generate_n_sentences(GPT_TOPICS_KEY, n, topic_name, topic_definition, keywords, name_variations, difficult_cases, labelled_sentences)
     for i in sentences:
         print(i,'\n')
     '''with open(os.path.realpath(rf'sentences.json'), 'r', encoding='utf-8') as f:
@@ -208,5 +208,5 @@ if __name__ == "__main__":
     sentences.extend(data)'''
     with open(os.path.realpath(rf'sentences.json'), 'w') as f:
         json.dump(sentences, f, indent=4)
-    r = generate_kw_nv_dc(topic_name, topic_definition, keywords, name_variations, difficult_cases, labelled_sentences)
+    r = generate_kw_nv_dc(GPT_TOPICS_KEY, topic_name, topic_definition, keywords, name_variations, difficult_cases, labelled_sentences)
     print(r)
