@@ -1,3 +1,12 @@
 streamlit
 elasticsearch
 matplotlib
+numpy
+pandas
+scipy
+typing
+iterative-stratification
+python-dotenv
+openai
+scikit-learn
+sentence-transformers
