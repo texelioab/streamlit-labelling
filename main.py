@@ -413,7 +413,7 @@ else:
             st.session_state.current_prompt_choice = st.sidebar.selectbox("Choice",prompt_choice_options,index=prompt_choice_options.index(st.session_state.prompt_choice), key='prompted_choice')
 
             st.header('GPT Suggestion')
-            st.subheader(f'Derived by asking GPT to select the {data['n_gpt_suggestions']} sentences which together would provide the largest amount of context and data variation.')
+            st.subheader(f"Derived by asking GPT to select the {data['n_gpt_suggestions']} sentences which together would provide the largest amount of context and data variation.")
             for i, sentence in enumerate(data['gpt_suggestion'],start=1):
                 st.write(rf"$\textsf{{\large Sentence {i}}}$")
                 st.write( f"**Sentence Text:**  \n{sentence['sentence_text']}  \n**Label:** {sentence['label']}  \n**Explanation:**  \n{sentence['explanation']}")
