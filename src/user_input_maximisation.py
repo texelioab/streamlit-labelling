@@ -1,5 +1,5 @@
-from gpt_augmentation import generate_kw_nv_dc, generate_n_sentences
-from gpt_sentence_suggestions import select_n_sentences
+from src.gpt_augmentation import generate_kw_nv_dc, generate_n_sentences
+from src.gpt_sentence_suggestions import select_n_sentences
 from cluster_sentences import yes_no_cluster_sentences
 import streamlit as st
 import random
