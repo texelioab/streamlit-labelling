@@ -10,7 +10,7 @@ import pandas as pd
 from itertools import product
 import random
 
-def create_es_client() -> Elasticsearch:
+def create_es_client(ELASTIC_HOST, ELASTIC_USER, ELASTIC_PASS) -> Elasticsearch:
     """Connect to ElasticSearch, using our API/client-pass. Run as, for instance, client = create_es_client(). client is used in any call to the database.
 
     Returns:
@@ -23,11 +23,12 @@ def create_es_client() -> Elasticsearch:
     return elastic_client
 
 
-def transform_field(index: str, field: str, transform_function: Callable, batch_size=1000) -> None:
+def transform_field(client: Elasticsearch, index: str, field: str, transform_function: Callable, batch_size=1000) -> None:
     """Transforms a particular field (column) in a particular index (table), by a given function.
     For instance, if we want to add 1 to each entry in a field, enter transform_function = lambda x: x + 1.
 
     Args:
+        client (Elasticsearch): Client connection to Elasticsearch.
         index (str): The index where the field we want to adjust exists.
         field (str): The desired field to be adjusted.
         transform_function (Callable): A function that acts on each field value and transforms it.
@@ -55,10 +56,11 @@ def transform_field(index: str, field: str, transform_function: Callable, batch_
 
 
 
-def insert_document(index: str, document: dict) -> None:
+def insert_document(client: Elasticsearch, index: str, document: dict) -> None:
     """Enters a new document into a given index. The document is a dictionary with keys corresponding to the index fields.
 
     Args:
+        client (Elasticsearch): Client connection to Elasticsearch.
         index (str): The index into which the document will be inserted.
         document (dict): A dictionary with keys corresponding to the index fields.
     """    
@@ -86,10 +88,11 @@ def match_query(identifier: dict) -> dict:
     }
 
 
-def delete_document(index: str, identifier: dict, delete_all=False) -> None:
+def delete_document(client: Elasticsearch, index: str, identifier: dict, delete_all=False) -> None:
     """Deletes one or more documents from a given index.
 
     Args:
+        client (Elasticsearch): Client connection to Elasticsearch.
         index (str): The index from which the document or documents will be deleted.
         identifier (dict): Identifier (see match_query above) is a dictionary, with as many keys as is necessary to select the desired documents. If identifier is empty, this will delete the entire index.
         delete_all (bool, optional): Defaults to False. If want to delete entire index, set to True, with identifier={}.
@@ -104,10 +107,11 @@ def delete_document(index: str, identifier: dict, delete_all=False) -> None:
         raise ValueError("Refusing to delete all documents without explicit `delete_all` flag set to True.")
 
 
-def search_document(index: str, identifier: dict, all=False, batch_size=1000) -> list:
+def search_document(client: Elasticsearch, index: str, identifier: dict, all=False, batch_size=1000) -> list:
     """Retrieves one or more documents from a given index. 
 
     Args:
+        client (Elasticsearch): Client connection to Elasticsearch.
         index (str): The index from which the document or documents will be retrieved.
         identifier (dict): Identifier (see match_query above) is a dictionary, with as many keys as is necessary to select the desired documents. If identifier is empty, the function will retireve the entire index. Otherwise it will select all documents which match identifier, which could be one ore more doocuments.
         all (bool, optional): Defaults to False. Whether to return only the document, or also the '_id' and extra more general information.
@@ -126,10 +130,11 @@ def search_document(index: str, identifier: dict, all=False, batch_size=1000) ->
     return documents
 
 
-def insert_in_bulk(index: str, table: dict) -> None:
+def insert_in_bulk(client: Elasticsearch, index: str, table: dict) -> None:
     """Inserts a large number of rows into an index.
 
     Args:
+        client (Elasticsearch): Client connection to Elasticsearch.
         index (str): Name of the index into which data will be inputted.
         table (dict): List of dictionaries, where each dictionary represents a row in the table: keys correspond to columns.
     """    
@@ -137,23 +142,25 @@ def insert_in_bulk(index: str, table: dict) -> None:
     bulk(client, actions)
 
 
-def create_index(index: str, table: dict) -> None:
+def create_index(client: Elasticsearch, index: str, table: dict) -> None:
     """Creates a new index, with a given name, with inserted documents.
 
     Args:
+        client (Elasticsearch): Client connection to Elasticsearch.
         index (str): Name of the new index
         table (dict): List of dictionaries, where each dictionary represents a row in the table: keys correspond to columns.
     """    
     if not client.indices.exists(index=index):
         client.indices.create(index=index)
-        insert_in_bulk(index, table)
+        insert_in_bulk(client, index, table)
 
 
-def join_sl_and_los(include_parent_topic_label = True) -> list:
+def join_sl_and_los(client: Elasticsearch, include_parent_topic_label = True) -> list:
     """Returns a list of dictionaries which are joins on the sentence_labels and labelled_sentences indices.
     If one particular sentence has multiple entries in the sentence_labels index (due to having multiple labels) certain fields (such as 'topics') will have lists of labels. For the fields with lists, each index position corresponds to one document in sentence_labels.
 
-    Args:    
+    Args:
+        client (Elasticsearch): Client connection to Elasticsearch.
         include_parent_topic_label (bool, optional): Defaults to True. Whether or not to include parent topics as labels for each sentence.
 
     Returns:
@@ -161,15 +168,15 @@ def join_sl_and_los(include_parent_topic_label = True) -> list:
     """    
     joined = []
     d = {}
-    ls = search_document('labelled_sentence',{},all=True)
+    ls = search_document(client, 'labelled_sentence',{},all=True)
     for i in ls:
         d[i['_id']] = [i['_source']]
     if include_parent_topic_label:
-        ts = search_document('topic_entity',{})
+        ts = search_document(client, 'topic_entity',{})
         topic_to_parent = {}
         for t in ts:
             topic_to_parent[t['id']] = t['parent_topic_id']
-    sentence_labels = search_document('sentence_label',{})
+    sentence_labels = search_document(client, 'sentence_label',{})
     for sentence_label in sentence_labels:
         d[sentence_label['sentence_id']].append(sentence_label)
         if include_parent_topic_label:
@@ -192,10 +199,11 @@ def join_sl_and_los(include_parent_topic_label = True) -> list:
     return joined
 
 
-def train_test_split_stratified(list_dictionary_documents: list, train_proportion: float, run_diagnostics: bool, batch_size=1000, random_state=42) -> list:
+def train_test_split_stratified(client: Elasticsearch, list_dictionary_documents: list, train_proportion: float, run_diagnostics: bool, batch_size=1000, random_state=42) -> list:
     """Splits data into train and test samples. Stratisfies: also ensuring that for each topic there is a proportional split between train and test as well.
 
     Args:
+        client (Elasticsearch): Client connection to Elasticsearch.
         list_dictionary_documents (list): Input data. List of dictionaries, each dictionary representing a sentence with its labelled topics.
         train_proportion (float): [0,1], the proportion of sentences that goes into the training sample. Also the proportion of sentences with a particular topic that goes into the training sample.
         run_diagnostics (bool): If True, prints train/test split proportion of output data, as well as split for each topic.
@@ -205,8 +213,8 @@ def train_test_split_stratified(list_dictionary_documents: list, train_proportio
     Returns:
         list: A list with two lists, first list is train sentences, second is test sentences.
     """        
-    topics = search_document('topic_entity',{'type':'Topic'},batch_size=batch_size)
-    topics.extend(search_document('topic_entity',{'type':'Subtopic'},batch_size=batch_size))
+    topics = search_document(client, 'topic_entity',{'type':'Topic'},batch_size=batch_size)
+    topics.extend(search_document(client, 'topic_entity',{'type':'Subtopic'},batch_size=batch_size))
     topic_ids = [t['id'] for t in topics]
     parent_ids = [next((t for t in topics if t['id'] == k), None)['parent_topic_id'] for k in topic_ids]
 
@@ -248,10 +256,11 @@ def train_test_split_stratified(list_dictionary_documents: list, train_proportio
     return [train_sentences, test_sentences]
 
 
-def list_dictionary_documents_to_json(list_dictionary_documents: list, json_name: str, destination: str) -> None:
+def list_dictionary_documents_to_json(client: Elasticsearch, list_dictionary_documents: list, json_name: str, destination: str) -> None:
     """Takes a list of dictionaries and writes to a json. Can be used both after calling simply fetch_all_content, or after join_ls_and_sl
 
     Args:
+        client (Elasticsearch): Client connection to Elasticsearch.
         list_dictionary_documents (list): Data: the list of dictionaries outputted both by search_document and join_ls_and_sl (or anything of similar structure).
         json_name (str): The name of the file
         destination (str): Path to file. If in the same repository, ''; if in another directory, path it by, say, 'data\jsons\'.
@@ -259,12 +268,15 @@ def list_dictionary_documents_to_json(list_dictionary_documents: list, json_name
     with open(os.path.realpath(f'{destination}{json_name}.json'), 'w', encoding='utf-8') as f:
         json.dump(list_dictionary_documents, f, ensure_ascii=False, indent=4)
 
-def co_labelling_grid():
+def co_labelling_grid(client: Elasticsearch):
     """Creates a csv file "grid.csv", which contains, for each topic-topic pair, the number of sentences they have both been labelled in.
+    
+    Args:
+        client (Elasticsearch): Client connection to Elasticsearch.
     """        
     topics = []
     d = {}
-    l = search_document('topic_count_visualisation',{})
+    l = search_document(client, 'topic_count_visualisation',{})
     for i in l:
         if i['topic_name'] not in topics:
             topics.append(i['topic_name'])
@@ -286,8 +298,11 @@ def co_labelling_grid():
     df.to_csv('grid.csv',sep=',',index=True,encoding='utf-8')
 
 
-def push_visualisation_data():
+def push_visualisation_data(client: Elasticsearch):
     """When new labelling has been performed, adding new labelled sentences to the index labelled_sentence, run this function so that the visualisation is updated.
+    
+    Args: 
+        client (Elasticsearch): Client connection to Elasticsearch.
     """        
     labeller_type = {}
     l = []
@@ -296,14 +311,14 @@ def push_visualisation_data():
         l.append(hit)
     for i in l:
         labeller_type[i['_id']] = i['_source']['type']
-    l = search_document('topic_entity',{})
+    l = search_document(client, 'topic_entity',{})
     id_name = {}
     parent = {}
     for i in l:
         id_name[i['id']] = i['name']
         parent[i['id']] = i['parent_topic_id']
-    sl = search_document('sentence_label',{})
-    tcv = search_document('topic_count_visualisation',{})
+    sl = search_document(client, 'sentence_label',{})
+    tcv = search_document(client, 'topic_count_visualisation',{})
     sentence_id_topic_id = []
     for i in sl:
         if labeller_type[i['labeller_id']] == 'Human':
@@ -317,7 +332,7 @@ def push_visualisation_data():
             print(i, {'sentence_id':i[0],'topic_name':id_name[i[1]]})
             l.append({'sentence_id':i[0],'topic_name':id_name[i[1]]})
     if len(l) >0:
-        insert_in_bulk('topic_count_visualisation',l)
+        insert_in_bulk(client, 'topic_count_visualisation',l)
     
 
 if __name__ == "__main__":
@@ -325,4 +340,4 @@ if __name__ == "__main__":
     ELASTIC_HOST=os.getenv('ELASTIC_HOST')
     ELASTIC_USER=os.getenv('ELASTIC_USER')
     ELASTIC_PASS=os.getenv('ELASTIC_PASS')
-    client = create_es_client()
+    client = create_es_client(ELASTIC_HOST, ELASTIC_USER, ELASTIC_PASS)
